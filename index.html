@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GTPAL Code Finder App</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0d6efd">
+  <link rel="icon" href="icon-192.png">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    html, body { height: 100%; }
+    body { display: flex; flex-direction: column; }
+    main { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+    footer { flex-shrink: 0; }
+  </style>
+</head>
+<body class="bg-light">
+
+  <header class="bg-primary text-light text-center py-3 shadow">
+    <h1 class="h4 mb-0">GTPAL Code Finder App</h1>
+  </header>
+
+  <main class="container py-4">
+    <div class="input-group mb-3">
+      <span class="input-group-text">G</span>
+      <input type="number" class="form-control" id="gravidity" placeholder="Gravidity">
+      <input type="number" class="form-control" id="term" placeholder="Term">
+      <input type="number" class="form-control" id="preterm" placeholder="Preterm">
+      <input type="number" class="form-control" id="abortion" placeholder="Abortion">
+      <input type="number" class="form-control" id="living" placeholder="Living">
+    </div>
+
+    <div class="input-group mb-3">
+      <span class="input-group-text">Age</span>
+      <input type="number" class="form-control" id="age" placeholder="Patient Age">
+    </div>
+
+    <div class="alert alert-info d-none" role="alert">
+      <b>Warning:</b>
+    </div>
+
+    <div class="card d-none shadow-sm" id="result">
+      <div class="card-body">
+        <div id="icd10coderesult">Results:</div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-dark text-light text-center py-3 w-100 small">
+    Created by Carlos Vega • Version 1.0<br>
+    <b>Disclaimer:</b> For demonstration and development purposes only. Not for clinical use.
+  </footer>
+
+  <script>
+    function validateAndDisplay() {
+      const ids = ['gravidity', 'term', 'preterm', 'abortion', 'living', 'age'];
+      const rawValues = ids.map(id => document.getElementById(id).value.trim());
+      const missingCount = rawValues.filter(v => v === '').length;
+
+      const resultCard = document.getElementById('result');
+      const alertBox = document.querySelector('.alert');
+      const resultOutput = document.getElementById('icd10coderesult');
+
+      let errors = [];
+      let warnings = [];
+
+      if (missingCount > 0) {
+        resultCard.classList.remove('d-none');
+        resultOutput.innerHTML = `Please enter all information. Missing ${missingCount} item(s).`;
+        alertBox.classList.add('d-none');
+        return;
+      }
+
+      const [gravidity, term, preterm, abortion, living, age] = rawValues.map(v => parseFloat(v));
+
+      ids.forEach((id, index) => {
+        const val = parseFloat(rawValues[index]);
+        if (isNaN(val) || val < 0) { errors.push(`${id} must be a non-negative number.`); }
+        if (!Number.isInteger(val)) { errors.push(`${id} must be an integer.`); }
+      });
+
+      if (age < 10 || age > 60) { warnings.push('Age is outside normal childbearing range (10-60).'); }
+      if (gravidity < 1 && (term + preterm + abortion + living) > 0) { errors.push('Cannot have outcomes if gravidity is zero.'); }
+      if ((term + preterm + abortion) > gravidity) { errors.push('Sum of term, preterm, abortion cannot exceed gravidity.'); }
+      if (abortion > gravidity) { errors.push('Abortion count cannot exceed gravidity.'); }
+      if ((term + preterm) > gravidity) { errors.push('Sum of term and preterm cannot exceed gravidity.'); }
+      if (living > (term + preterm)) { warnings.push('Living children exceed total deliveries; possible multiple birth?'); }
+      if (abortion === gravidity && (term + preterm) > 0) { errors.push('Cannot have term/preterm births if all pregnancies ended in abortion.'); }
+      if (term >= 1 && living === 0 && abortion === 0) { warnings.push('No living children despite term delivery; missing stillbirth info?'); }
+      if (age <= 15 && gravidity >= 3) { warnings.push('Unusually high gravidity for young patient age.'); }
+
+      if (errors.length > 0) {
+        resultCard.classList.remove('d-none');
+        resultOutput.innerHTML = errors.join('<br>');
+        alertBox.classList.add('d-none');
+        return;
+      }
+
+      if (warnings.length > 0) {
+        alertBox.classList.remove('d-none');
+        alertBox.innerHTML = `<b>Warning:</b> ${warnings.join('<hr>')}`;
+      } else { alertBox.classList.add('d-none'); }
+
+      let trimester = term >= 1 ? 2 : 1;
+      let codeText = '';
+      if (age >= 35) {
+        codeText = (gravidity === 1)
+          ? (trimester === 1 ? 'O09.511 Supervision of elderly primigravida, 1st trimester' : 'O09.512 Supervision of elderly primigravida, 2nd trimester')
+          : (trimester === 1 ? 'O09.521 Supervision of elderly multigravida, 1st trimester' : 'O09.522 Supervision of elderly multigravida, 2nd trimester');
+      } else {
+        codeText = (trimester === 1)
+          ? 'Z34.81 Supervision of other normal pregnancy, 1st trimester'
+          : 'Z34.82 Supervision of other normal pregnancy, 2nd trimester';
+      }
+
+      let alsoConsider = '';
+      if (preterm > 0 || abortion > 0) { alsoConsider = 'O28.5 Abnormal chromosomal & genetic finding'; }
+
+      let displayHtml = `<b>ICD-10 Code:</b> ${codeText}`;
+      if (alsoConsider) { displayHtml += `<hr><b>Also consider:</b> ${alsoConsider}`; }
+      displayHtml += `<hr><b>GTPAL:</b> Gravidity ${gravidity}, Term ${term}, Preterm ${preterm}, Abortion ${abortion}, Living ${living}, Age ${age}`;
+
+      resultCard.classList.remove('d-none');
+      resultOutput.innerHTML = displayHtml;
+    }
+
+    document.querySelectorAll('.form-control').forEach(input => {
+      input.addEventListener('input', validateAndDisplay);
+    });
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js')
+        .then(reg => console.log('✅ Service Worker registered:', reg))
+        .catch(err => console.error('❌ Service Worker registration failed:', err));
+    }
+  </script>
+</body>
+</html>
