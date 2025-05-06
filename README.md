@@ -4,4 +4,4 @@
 
 A web app to calculate GTPAL and corresponding ICD-10 codes.
 
-Deployed via GitHub Pages: https://dnaatwork.github.io/gtpal-app/
+Deployed via GitHub Pages: https://nerdyfocus.github.io/gtpal-app/
